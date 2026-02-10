@@ -105,6 +105,7 @@ curl -u user:passwd http://localhost:8080/basic-auth/user/passwd
 
 # Failed authentication (wrong credentials)
 curl -u user:wrong http://localhost:8080/basic-auth/user/passwd
+```
 
 #### `GET /bearer`
 
