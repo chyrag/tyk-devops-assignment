@@ -14,6 +14,14 @@ This implementation only support basic functionalitites limited to:
 - HTTP Status Codes
 - Delayed response.
 
+## Building and testing
+
+There's a provided Makefile with build and test targets included.
+Please use `make build` to build the binary,
+and `make test` to execute the unit tests.
+
+To build and run the binary with default options, use `make run`
+
 
 ## API Endpoints
 
