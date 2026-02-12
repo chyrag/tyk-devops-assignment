@@ -21,22 +21,22 @@ jobs:
   build-binaries:
     name: Build Standalone Binaries (${{ matrix.arch }})
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         arch: [amd64, arm64]
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-      
+
       - name: Get version
         id: version
         run: |
@@ -47,21 +47,21 @@ jobs:
           fi
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-      
+
       - name: Build dynamic binary
         run: |
           make build VERSION=${{ steps.version.outputs.version }} ARCH=${{ matrix.arch }}
-      
+
       - name: Build static binary
         run: |
           make build-static VERSION=${{ steps.version.outputs.version }} ARCH=${{ matrix.arch }}
-      
+
       - name: List built binaries
         run: |
           ls -lah bin/httpbin-${{ matrix.arch }} bin/httpbin-static-${{ matrix.arch }}
           file bin/httpbin-${{ matrix.arch }}
           file bin/httpbin-static-${{ matrix.arch }}
-      
+
       - name: Test static binary (verify it's actually static)
         run: |
           if [ "${{ matrix.arch }}" = "amd64" ]; then
@@ -69,7 +69,7 @@ jobs:
           else
             echo "Skipping ldd test for cross-compiled ARM binary"
           fi
-      
+
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
@@ -81,7 +81,7 @@ jobs:
   build-packages:
     name: Build ${{ matrix.package_type }} for ${{ matrix.distro_name }} (${{ matrix.arch }})
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         include:
@@ -91,87 +91,92 @@ jobs:
             package_type: deb
             install_test_cmd: "apt-get install -y"
             arch: amd64
-          
+
           - distro: debian:trixie
             distro_name: debian13
             package_type: deb
             install_test_cmd: "apt-get install -y"
             arch: arm64
-          
+
           # Debian 12 (Bookworm)
           - distro: debian:bookworm
             distro_name: debian12
             package_type: deb
             install_test_cmd: "apt-get install -y"
             arch: amd64
-          
+
           - distro: debian:bookworm
             distro_name: debian12
             package_type: deb
             install_test_cmd: "apt-get install -y"
             arch: arm64
-          
+
           # RHEL 8 / Rocky Linux 8
           - distro: rockylinux:8
             distro_name: el8
             package_type: rpm
             install_test_cmd: "yum install -y"
             arch: amd64
-          
+
           - distro: rockylinux:8
             distro_name: el8
             package_type: rpm
             install_test_cmd: "yum install -y"
             arch: arm64
-          
+
           # RHEL 9 / Rocky Linux 9
           - distro: rockylinux:9
             distro_name: el9
             package_type: rpm
             install_test_cmd: "yum install -y"
             arch: amd64
-          
+
           - distro: rockylinux:9
             distro_name: el9
             package_type: rpm
             install_test_cmd: "yum install -y"
             arch: arm64
-          
+
           # Fedora Latest
           - distro: fedora:latest
             distro_name: fedora
             package_type: rpm
             install_test_cmd: "dnf install -y"
             arch: amd64
-          
+
           - distro: fedora:latest
             distro_name: fedora
             package_type: rpm
             install_test_cmd: "dnf install -y"
             arch: arm64
-    
+
     # Run job inside the distro container
     container:
       image: ${{ matrix.distro }}
       options: --platform linux/${{ matrix.arch == 'amd64' && 'amd64' || 'arm64' }}
-    
+
     steps:
+      - name: Wait for container to become ready
+        run: |
+          echo "Container starting, waiting for initialization..."
+          sleep 30
+
       - name: Install dependencies (Debian/Ubuntu)
         if: startsWith(matrix.distro, 'debian')
         run: |
           apt-get update
           apt-get install -y git curl build-essential dpkg-dev make ca-certificates
-      
+
       - name: Install dependencies (Rocky Linux)
         if: startsWith(matrix.distro, 'rockylinux')
         run: |
           yum install -y git curl gcc make rpm-build ca-certificates
-      
+
       - name: Install dependencies (Fedora)
         if: startsWith(matrix.distro, 'fedora')
         run: |
           dnf install -y git curl gcc make rpm-build ca-certificates
-      
+
       - name: Install Go
         run: |
           # Detect architecture
@@ -184,21 +189,21 @@ jobs:
             echo "Unsupported architecture: $UNAME_ARCH"
             exit 1
           fi
-          
+
           curl -LO https://go.dev/dl/${GO_TARBALL}
           tar -C /usr/local -xzf ${GO_TARBALL}
           echo "/usr/local/go/bin" >> $GITHUB_PATH
-      
+
       - name: Verify Go installation
         run: |
           export PATH=/usr/local/go/bin:$PATH
           go version
-      
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Get version
         id: version
         run: |
@@ -209,13 +214,13 @@ jobs:
           fi
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-      
+
       - name: Build DEB package
         if: matrix.package_type == 'deb'
         run: |
           export PATH=/usr/local/go/bin:$PATH
           make deb VERSION=${{ steps.version.outputs.version }} ARCH=${{ matrix.arch }}
-          
+
           # Rename to include distro identifier
           ORIGINAL_DEB=$(ls bin/httpbin_*.deb | head -1)
           if [ -f "$ORIGINAL_DEB" ]; then
@@ -224,20 +229,20 @@ jobs:
             echo "Created: $NEW_NAME"
             ls -lh "$NEW_NAME"
           fi
-      
+
       - name: Build RPM package
         if: matrix.package_type == 'rpm'
         run: |
           export PATH=/usr/local/go/bin:$PATH
           make rpm VERSION=${{ steps.version.outputs.version }} ARCH=${{ matrix.arch }}
-          
+
           # Determine RPM architecture name
           if [ "${{ matrix.arch }}" = "amd64" ]; then
             RPM_ARCH="x86_64"
           elif [ "${{ matrix.arch }}" = "arm64" ]; then
             RPM_ARCH="aarch64"
           fi
-          
+
           # Rename RPM to include distro identifier
           ORIGINAL_RPM=$(ls bin/httpbin-*.rpm | head -1)
           if [ -f "$ORIGINAL_RPM" ]; then
@@ -247,12 +252,12 @@ jobs:
             else
               NEW_NAME="bin/httpbin-${{ steps.version.outputs.version }}-1.${{ matrix.distro_name }}.${RPM_ARCH}.rpm"
             fi
-            
+
             mv "$ORIGINAL_RPM" "$NEW_NAME"
             echo "Created: $NEW_NAME"
             ls -lh "$NEW_NAME"
           fi
-      
+
       - name: Test package installation
         run: |
           if [ "${{ matrix.package_type }}" = "deb" ]; then
@@ -263,10 +268,10 @@ jobs:
             PACKAGE=$(ls bin/httpbin-*.${{ matrix.distro_name }}.*.rpm)
             ${{ matrix.install_test_cmd }} "$PACKAGE" || true
           fi
-          
+
           # Test installed binary
           httpbin --version || echo "Binary test completed"
-      
+
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
@@ -277,24 +282,24 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: [build-binaries, build-packages]
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      
+
       - name: Organize files
         run: |
           mkdir -p release
           find artifacts -type f -exec cp {} release/ \;
           ls -lah release/
-      
+
       - name: Get version
         id: version
         run: |
@@ -304,7 +309,7 @@ jobs:
             VERSION="${GITHUB_REF#refs/tags/}"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-      
+
       - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -313,41 +318,41 @@ jobs:
             release/* \
             --title "Release ${{ steps.version.outputs.version }}" \
             --notes "## Distribution Packages
-          
+
           ### Debian Packages (amd64 & arm64)
           - \`httpbin_*_debian13_*.deb\` - Debian 13 (Trixie)
           - \`httpbin_*_debian12_*.deb\` - Debian 12 (Bookworm)
-          
+
           ### RPM Packages (x86_64 & aarch64)
           - \`httpbin-*.el8.*.rpm\` - RHEL 8 / Rocky Linux 8 / AlmaLinux 8
           - \`httpbin-*.el9.*.rpm\` - RHEL 9 / Rocky Linux 9 / AlmaLinux 9
           - \`httpbin-*.fc*.*.rpm\` - Fedora
-          
+
           ### Standalone Binaries (amd64 & arm64)
           - \`httpbin-amd64\` / \`httpbin-arm64\` - Dynamic binaries (require glibc)
           - \`httpbin-static-amd64\` / \`httpbin-static-arm64\` - Static binaries (work everywhere)
-          
+
           ## Installation Examples
-          
+
           **Debian 13 (amd64)**:
           \`\`\`bash
           wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/httpbin_${{ steps.version.outputs.version }}_debian13_amd64.deb
           sudo dpkg -i httpbin_${{ steps.version.outputs.version }}_debian13_amd64.deb
           \`\`\`
-          
+
           **RHEL 9 (x86_64)**:
           \`\`\`bash
           wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/httpbin-${{ steps.version.outputs.version }}-1.el9.x86_64.rpm
           sudo yum install httpbin-${{ steps.version.outputs.version }}-1.el9.x86_64.rpm
           \`\`\`
-          
+
           **Standalone Static Binary (works on any Linux)**:
           \`\`\`bash
           wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/httpbin-static-amd64
           chmod +x httpbin-static-amd64
           sudo mv httpbin-static-amd64 /usr/local/bin/httpbin
           \`\`\`
-          
+
           Built with Go ${{ env.GO_VERSION }}" \
             --repo ${{ github.repository }} \
             --latest
