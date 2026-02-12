@@ -10,6 +10,9 @@ RELEASE      := 1
 GITHUB_USER  := chyrag
 GITHUB_REPO  := tyk-devops-assignment
 
+REGISTRY     := ghcr.io
+IMAGE_NAME   := $(REGISTRY)/$(GITHUB_USER)/$(GITHUB_REPO)/$(BINARY_NAME)
+
 # Build metadata (evaluated once)
 VERSION      ?= $(shell git describe --tags --always 2>/dev/null || echo "dev")
 BUILD_TIME   := $(shell date -u '+%Y-%m-%d_%H:%M:%S_UTC')
@@ -63,6 +66,15 @@ build: prep
 	@echo "CGO binary built: $(OUTPUT_DIR)/$(BINARY_NAME)-$(ARCH)"
 	@ls -lh $(OUTPUT_DIR)/$(BINARY_NAME)-$(ARCH)
 
+build-fips: prep
+	@echo "Building FIPS compliant binary (CGO_ENABLED=1, ARCH=$(ARCH)"
+	CGO_ENABLED=1 GOARCH=${ARCH} GOEXPERIMENT=boringcrypto $(GO) build \
+		-buildvcs=false \
+		-tags=requirefips \
+		-ldflags "$(LDFLAGS)" \
+		-o $(OUTPUT_DIR)/$(BINARY_NAME)-$(ARCH)-fips \
+		$(MAIN_PATH)
+
 # Debian packaging
 deb: build-static
 	@echo "Building Debian package for $(ARCH)"
@@ -88,15 +100,33 @@ rpm: build-static
 	rpm -qip $(RPM_PKG)
 	rpm -qlp $(RPM_PKG)
 
-docker:
+docker-setup:
+	docker buildx create --use --name multiarch-builder
+	docker buildx inspect multiarch-builder --bootstrap
+
+docker-login:
+	@echo "$$GITHUB_TOKEN" | docker login $(REGISTRY) -u $(GITHUB_USER) --password-stdin
+
+docker: docker-setup docker-login
 	@echo "Building container image for $(BINARY_NAME)"
-	docker buildx create --use
 	docker buildx build \
 	       --platform linux/amd64,linux/arm64 \
-	       --tag $(BINARY_NAME) \
-	       --tag $(BINARY_NAME):$(VERSION) \
-	       --tag $(BINARY_NAME):sha-$(COMMIT_SHA) \
-	       --load .
+	       --tag $(IMAGE_NAME) \
+	       --tag $(IMAGE_NAME):$(VERSION) \
+	       --tag $(IMAGE_NAME):sha-$(COMMIT_SHA) \
+	       --push .
+	 docker buildx rm multiarch-builder
+
+fips: docker-setup docker-login
+	@echo "Building FIPS compliant container image for $(BINARY_NAME)"
+	docker buildx build \
+	       --platform linux/amd64,linux/arm64 \
+	       --file Dockerfile.fips \
+	       --tag $(IMAGE_NAME):fips \
+	       --tag $(IMAGE_NAME):$(VERSION)-fips \
+	       --tag $(IMAGE_NAME):sha-$(COMMIT_SHA)-fips \
+	       --push .
+	 docker buildx rm multiarch-builder
 
 test:
 	@echo "Running tests..."

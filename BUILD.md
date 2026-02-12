@@ -6,6 +6,10 @@ Builds can be triggered through:
 1. Manual workflow dispatch
 2. Pushing a tag that starts with 'v', for example, v1.2.3.
 
+## Build process
+
+
+
 ## Build artifacts
 
 We build the following artifacts as part of this Github action
@@ -47,7 +51,6 @@ A. Update the strategy matrix in the build-binaries: section in the
    following:
    - arch (architecture; used by go build and so should match GOARCH)
    - runner (name of the github runner)
-
 
 ## Future development
 
