@@ -14,7 +14,7 @@ GITHUB_REPO  := tyk-devops-assignment
 VERSION      ?= $(shell git describe --tags --always 2>/dev/null || echo "dev")
 BUILD_TIME   := $(shell date -u '+%Y-%m-%d_%H:%M:%S_UTC')
 COMMIT_SHA   := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
-LDFLAGS      := -s -w -X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME) -X main.commit=$(COMMIT)
+LDFLAGS      := -s -w -X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME) -X main.commit=$(COMMIT_SHA)
 
 # Architecture Detection
 ifeq ($(ARCH),)
@@ -46,6 +46,7 @@ prep:
 build-static: prep
 	@echo "Building static binary (CGO_ENABLED=0, ARCH=$(ARCH))..."
 	CGO_ENABLED=0 GOARCH=$(ARCH) $(GO) build \
+		-buildvcs=false \
 		-ldflags "$(LDFLAGS)" \
 		-o $(OUTPUT_DIR)/$(BINARY_NAME)-static-$(ARCH) \
 		$(MAIN_PATH)
@@ -55,6 +56,7 @@ build-static: prep
 build: prep
 	@echo "Building binary (CGO_ENABLED=1, ARCH=$(ARCH))..."
 	CGO_ENABLED=1 GOARCH=$(ARCH) $(GO) build \
+		-buildvcs=false \
 		-ldflags "$(LDFLAGS)" \
 		-o $(OUTPUT_DIR)/$(BINARY_NAME)-$(ARCH) \
 		$(MAIN_PATH)

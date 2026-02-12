@@ -263,6 +263,9 @@ jobs:
 
       - name: Test package installation
         run: |
+          set -ex
+          find . -name "*.rpm" -o -name "*.deb"
+          set +ex
           if [ "${{ matrix.package_type }}" = "deb" ]; then
             PACKAGE=$(ls bin/httpbin_*_${{ matrix.distro_name }}_${{ matrix.arch }}.deb)
             dpkg -i "$PACKAGE" || true
