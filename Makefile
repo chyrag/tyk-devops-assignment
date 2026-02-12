@@ -76,12 +76,16 @@ deb: build-static
 rpm: build-static
 	@echo "Building RPM package for $(RPM_ARCH)"
 	$(eval RPM_ROOT := $(HOME)/rpmbuild)
+	$(eval RPM_PKG := $(OUTPUT_DIR)/$(BINARY_NAME)-$(VERSION)-$(RELEASE).$(RPM_ARCH).rpm)
 	mkdir -p $(RPM_ROOT)/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 	mkdir -p $(OUTPUT_DIR)/rpm-tmp/usr/bin
 	cp $(OUTPUT_DIR)/$(BINARY_NAME)-static-$(ARCH) $(OUTPUT_DIR)/rpm-tmp/usr/bin/$(BINARY_NAME)
 	echo -e "Name: $(BINARY_NAME)\nVersion: $(VERSION)\nRelease: $(RELEASE)\nSummary: httpbin tool\nLicense: MIT\n%description\nhttpbin tool\n%files\n/usr/bin/$(BINARY_NAME)" > $(OUTPUT_DIR)/$(BINARY_NAME).spec
 	rpmbuild -bb --define "_topdir $(RPM_ROOT)" --buildroot $(PWD)/$(OUTPUT_DIR)/rpm-tmp $(OUTPUT_DIR)/$(BINARY_NAME).spec
-	mv $(RPM_ROOT)/RPMS/*/*.rpm $(OUTPUT_DIR)/$(BINARY_NAME)-$(VERSION)-$(RELEASE).$(RPM_ARCH).rpm
+	mv $(RPM_ROOT)/RPMS/*/*.rpm $(RPM_PKG)
+	rpm -qip $(RPM_PKG)
+	rpm -qlp $(RPM_PKG)
+
 docker:
 	@echo "Building container image for $(BINARY_NAME)"
 	docker buildx create --use
